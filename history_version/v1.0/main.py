@@ -53,7 +53,7 @@ def get_batches(inputs, lenth, labels, num):
             count_num += 1
         yield batch_inputs, batch_lenth, batch_labels
 
-def get_nolabel_batches(inputs, lenth, num):
+def get_splited_batches(inputs, lenth, num):
     batch_size = FLAGS.max_batch_size
     count_num = 0
 
@@ -121,7 +121,7 @@ def train(sess):
         attn_lenth=FLAGS.attn_lenth
     )
     model.build_train_graph()
-    model.build_validate_graph(1)
+    model.build_validate_graph(valid_num)
 
     init = tf.global_variables_initializer()
     sess.run(init, feed_dict={model.pretrained_wv: pretrained_wv})
@@ -142,7 +142,11 @@ def train(sess):
     # max_acc = 0
     lr = 0.001
     valid_labels = np.reshape(valid_labels, [valid_num, 1])
-
+    dev_feed_dict = {
+        model.dev_inputs: valid_inputs,
+        model.dev_lenth: valid_lenth,
+        model.dev_labels: valid_labels
+    }
 
     print("Training initialized")
     start = time.time()
@@ -161,25 +165,16 @@ def train(sess):
                                             model.train_scalar,
                                             model.train_accuracy],
                                      feed_dict=feed_dict)
+        dev_loss, d_scalar, d_acc, w2v = sess.run([model.dev_loss,
+                                                   model.dev_scalar,
+                                                   model.dev_accuracy,
+                                                   model.embeddings],
+                                                  feed_dict=dev_feed_dict)
+
         sum_loss += loss
+        sum_dev_loss += dev_loss
         sum_acc_t += t_acc
-
-        for dev_inputs, dev_lenth, dev_labels in get_batches(valid_inputs, valid_lenth, valid_labels, valid_num):
-            dev_feed_dict = {
-                model.dev_inputs: dev_inputs,
-                model.dev_lenth: dev_lenth,
-                model.dev_labels: dev_labels
-            }
-            dev_loss, d_scalar, d_acc, w2v = sess.run([model.dev_loss,
-                                                       model.dev_scalar,
-                                                       model.dev_accuracy,
-                                                       model.embeddings],
-                                                      feed_dict=dev_feed_dict)
-            sum_dev_loss += dev_loss
-            sum_acc_d += d_acc
-
-        sum_dev_loss /= valid_num
-        sum_acc_d /= valid_num
+        sum_acc_d += d_acc
 
         def eval_ws(ws_list):
             from scipy import stats
@@ -222,7 +217,7 @@ def train(sess):
             saver.save(sess, FLAGS.ckpt_dir + "/step{}.ckpt".format(step_global))
 
             train_writer.add_summary(t_scalar, step_global)
-            # train_writer.add_summary(d_scalar, step_global)
+            train_writer.add_summary(d_scalar, step_global)
             ac_scalar = tf.Summary(value=[tf.Summary.Value(tag="accuracy rate", simple_value=sum_acc_d / FLAGS.save_every_n)])
             train_writer.add_summary(ac_scalar, step_global)
             # p_240, s_240 = eval_ws(reader.read_wordsim240())
@@ -399,7 +394,7 @@ def test_without_eval(sess):
 
     expection = []
     if restore_from_checkpoint(sess, saver, 'save/pt_bi_lstm_attn/1'):
-        for piece_inputs, piece_lenth in get_nolabel_batches(test_inputs, test_lenth, test_num):
+        for piece_inputs, piece_lenth in get_splited_batches(test_inputs, test_lenth, test_num):
             test_feed_dict = {
                 model.test_inputs: piece_inputs,
                 model.test_lenth: piece_lenth
