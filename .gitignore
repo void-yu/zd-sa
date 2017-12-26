@@ -3,5 +3,6 @@ results
 save
 tensorb
 history_version
+history_version/
 .idea
 __pycache__
