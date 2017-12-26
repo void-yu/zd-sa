@@ -175,7 +175,7 @@ class EncoderModel(object):
 
     def build_test_graph(self):
         # IO
-        self.seq_size = 89
+        self.seq_size = 100
         self.test_inputs = tf.placeholder(tf.int32, shape=[None, self.seq_size])
         self.test_labels = tf.placeholder(tf.float32, shape=[None, 1])
         self.test_lenth = tf.placeholder(tf.int32, shape=[None])

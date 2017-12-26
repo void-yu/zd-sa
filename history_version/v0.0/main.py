@@ -26,7 +26,7 @@ flags.DEFINE_integer("attn_lenth", 350,
 '''
 flags.DEFINE_integer("glossary_size", 35156,
                      "The glossary dimension size.")
-flags.DEFINE_integer("batch_size", 1,
+flags.DEFINE_integer("batch_size", 128,
                      "Number of sentences per batch. And each time we feed the whole sentence.")
 flags.DEFINE_integer("seq_size", 60, "")
 flags.DEFINE_integer("epochs_batch", 2000,
@@ -84,7 +84,7 @@ def train(sess):
     start = time.time()
 
     id2word, word2id = reader.read_glossary()
-    train_corpus, valid_corpus, _ = reader.read_corpus(index='2', pick_test=False)
+    train_corpus, valid_corpus, _ = reader.read_corpus(index='0', pick_test=False)
     pretrained_wv = reader.read_initw2v()
 
     train_inputs = []
@@ -92,9 +92,9 @@ def train(sess):
     train_labels = []
     train_num = 0
     for item in train_corpus:
-        train_inputs.append(item[0][0])
-        train_lenth.append(int(item[0][1]))
-        train_labels.append(1 if item[1] is 'T' else 0)
+        train_inputs.append(item[1])
+        train_lenth.append(int(item[2]))
+        train_labels.append(1 if item[0] is 'T' else 0)
         train_num += 1
 
     valid_inputs = []
@@ -102,9 +102,9 @@ def train(sess):
     valid_labels = []
     valid_num = 0
     for item in valid_corpus:
-        valid_inputs.append(item[0][0])
-        valid_lenth.append(int(item[0][1]))
-        valid_labels.append(1 if item[1] is 'T' else 0)
+        valid_inputs.append(item[1])
+        valid_lenth.append(int(item[2]))
+        valid_labels.append(1 if item[0] is 'T' else 0)
         valid_num += 1
     end = time.time()
     print("Read finished -- {:.4f} sec".format(end-start))
@@ -270,7 +270,7 @@ def test(sess):
         hidden_size=FLAGS.hidden_size,
         attn_lenth=FLAGS.attn_lenth
     )
-    model.build_test_graph()
+    model.build_test_graph(89)
 
     saver = tf.train.Saver()
     test_labels = np.reshape(test_labels, [test_num, 1])
@@ -465,8 +465,8 @@ def compile(stage):
 
 def main(_):
     with tf.Graph().as_default(), tf.Session() as sess:
-        train(sess)
-        # test(sess)
+        # train(sess)
+        test(sess)
         # test_onesent(sess, '手机电池炸伤机主 商家称便宜货不保质量')
         # test_onesent(sess, '乐利来案例:医科大学朱志华副教授就自身股骨头坏死改善的讲述')
         # test_onesent(sess, '茅台经营成功')

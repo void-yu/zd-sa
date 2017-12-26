@@ -32,6 +32,7 @@ def read_initw2v():
         embedding = pickle.load(fp)
     return embedding
 
+print(np.shape(read_initw2v()))
 
 def read_wordsim240():
     file_sim = open('data/words-240/Words-240.txt', 'r', encoding='utf8')

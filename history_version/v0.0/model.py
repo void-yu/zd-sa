@@ -41,8 +41,8 @@ class EncoderModel(object):
     def trainable_parameters(self):
         self.keep_prob = 0.5
         with tf.name_scope('embeddings'), tf.variable_scope('embeddings'):
-            self.embeddings = tf.Variable(self.pretrained_wv, name='embeddings')
-        # self.embeddings = tf.Variable(tf.truncated_normal([self.glossary_size, self.embedding_size], stddev=0.1), name='embeddings')
+            # self.embeddings = tf.Variable(self.pretrained_wv, name='embeddings')
+            self.embeddings = tf.Variable(tf.truncated_normal([self.glossary_size, self.embedding_size], stddev=0.1), name='embeddings')
         with tf.name_scope('lstm'), tf.variable_scope('lstm'):
             self.lstm_fw_cell = tf.contrib.rnn.BasicLSTMCell(self.hidden_size, forget_bias=1.0, state_is_tuple=True)
             self.lstm_bw_cell = tf.contrib.rnn.BasicLSTMCell(self.hidden_size, forget_bias=1.0, state_is_tuple=True)
@@ -173,10 +173,9 @@ class EncoderModel(object):
 
 
 
-    def build_test_graph(self):
+    def build_test_graph(self, seq_size):
         # IO
-        self.seq_size = 89
-        self.test_inputs = tf.placeholder(tf.int32, shape=[None, self.seq_size])
+        self.test_inputs = tf.placeholder(tf.int32, shape=[None, seq_size])
         self.test_labels = tf.placeholder(tf.float32, shape=[None, 1])
         self.test_lenth = tf.placeholder(tf.int32, shape=[None])
 
@@ -200,10 +199,10 @@ class EncoderModel(object):
             u2_w = tf.Variable(tf.truncated_normal([self.attn_lenth, 1], stddev=0.1), name='attention_uw')
             rnn_outputs = tf.reshape(rnn_outputs, [-1, 2 * self.hidden_size])
             attn_z = tf.matmul(rnn_outputs, u1_w) + u1_b
-            rnn_outputs = tf.reshape(rnn_outputs, [-1, self.seq_size, 2 * self.hidden_size])
-            attn_z = tf.reshape(tf.matmul(attn_z, u2_w), [-1, self.seq_size])
+            rnn_outputs = tf.reshape(rnn_outputs, [-1, seq_size, 2 * self.hidden_size])
+            attn_z = tf.reshape(tf.matmul(attn_z, u2_w), [-1, seq_size])
             alpha = tf.nn.softmax(attn_z)
-            alpha = tf.reshape(alpha, [-1, self.seq_size, 1])
+            alpha = tf.reshape(alpha, [-1, seq_size, 1])
             rnn_outputs = tf.reduce_sum(rnn_outputs * alpha, axis=1)
             self.alpha = alpha
 

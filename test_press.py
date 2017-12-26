@@ -145,20 +145,21 @@ def main():
         init = tf.global_variables_initializer()
         sess.run(init)
         train_corpus, valid_corpus, _ = reader.read_corpus(index='2', pick_test=False)
-        train_inputs = []
-        train_lenth = []
-        train_labels = []
-        train_num = 0
-        for item in train_corpus:
-            train_inputs.append(item[0][0])
-            train_lenth.append(int(item[0][1]))
-            train_labels.append(1 if item[1] is 'T' else 0)
-            train_num += 1
-        train_labels = np.reshape(train_labels, [-1, 1])
+        print(np.shape(train_corpus[0][0][0]))
+        # train_inputs = []
+        # train_lenth = []
+        # train_labels = []
+        # train_num = 0
+        # for item in train_corpus:
+        #     train_inputs.append(item[0][0])
+        #     train_lenth.append(int(item[0][1]))
+        #     train_labels.append(1 if item[1] is 'T' else 0)
+        #     train_num += 1
+        # train_labels = np.reshape(train_labels, [-1, 1])
         feed_dict = {
-            model.inputs: train_inputs[:batch_size],
-            model.lenth: train_lenth[:batch_size],
-            model.labels: train_labels[:batch_size],
+            model.inputs: np.random.rand(batch_size, 1000),
+            model.lenth: [1000]*batch_size,
+            model.labels: np.random.rand(batch_size, 1),
             model.learning_rate: 0.01
         }
         for i in range(100):
@@ -170,4 +171,7 @@ def main():
                                                 feed_dict=feed_dict)
             end = time.time()
             print(loss, end - start)
-main()
+# main()
+
+
+
