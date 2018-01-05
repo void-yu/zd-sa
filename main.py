@@ -1,15 +1,15 @@
 import reader
 import tensorflow as tf
-from model import EncoderModel
+from model_sgd import EncoderModel
 import time
 import numpy as np
 
 
 flags = tf.app.flags
 
-flags.DEFINE_string("tensorboard_dir", "tensorb/test",
+flags.DEFINE_string("tensorboard_dir", "tensorb/me-sum",
                     "Directory to write the model and training summaries.")
-flags.DEFINE_string("ckpt_dir", "save/test",
+flags.DEFINE_string("ckpt_dir", "save/pt-me-sum",
                     "Directory to write the model and training summaries.")
 flags.DEFINE_integer("save_every_n", 10,
                      "Save all parameters every n iterations")
@@ -28,10 +28,9 @@ flags.DEFINE_integer("glossary_size", 35156,
                      "The glossary dimension size.")
 flags.DEFINE_integer("batch_size", 1,
                      "Number of sentences per batch. And each time we feed the whole sentence.")
-flags.DEFINE_integer("seq_size", 60, "")
-flags.DEFINE_integer("epochs_batch", 2000,
+flags.DEFINE_integer("max_seq_size", 120, "")
+flags.DEFINE_integer("epoches", 100,
                      "Number of epochs processed. I set only One batch is processed in One epoch.")
-flags.DEFINE_integer("max_batch_size", 1024, "")
 
 FLAGS = flags.FLAGS
 
@@ -53,18 +52,18 @@ def get_batches(inputs, lenth, labels, num):
             count_num += 1
         yield batch_inputs, batch_lenth, batch_labels
 
-def get_nolabel_batches(inputs, lenth, num):
-    batch_size = FLAGS.max_batch_size
-    count_num = 0
-
-    while(count_num < num):
-        batch_inputs = []
-        batch_lenth = []
-        for j in range(min(batch_size, num - count_num)):
-            batch_inputs.append(inputs[count_num])
-            batch_lenth.append(lenth[count_num])
-            count_num += 1
-        yield batch_inputs, batch_lenth
+# def get_nolabel_batches(inputs, lenth, num):
+#     batch_size = FLAGS.max_batch_size
+#     count_num = 0
+#
+#     while(count_num < num):
+#         batch_inputs = []
+#         batch_lenth = []
+#         for j in range(min(batch_size, num - count_num)):
+#             batch_inputs.append(inputs[count_num])
+#             batch_lenth.append(lenth[count_num])
+#             count_num += 1
+#         yield batch_inputs, batch_lenth
 
 
 def restore_from_checkpoint(sess, saver, dir):
@@ -75,37 +74,25 @@ def restore_from_checkpoint(sess, saver, dir):
     saver.restore(sess, ckpt.model_checkpoint_path)
     return True
 
+def get_piece(corpus):
+    for index in range(len(corpus)):
+        title_input = [corpus[index][1][0][0]]
+        title_lenth = [corpus[index][1][0][1]]
+        text_inputs = [item[0] for item in corpus[index][2]]
+        text_lenths = [item[1] for item in corpus[index][2]]
+        label = [1 if corpus[index][0] is 'T' else 0]
+        yield title_input, title_lenth, text_inputs, text_lenths, label
 
 
 def train(sess):
-
     # Pretreatment
     print("Read file --")
     start = time.time()
 
-    id2word, word2id = reader.read_glossary()
-    train_corpus, valid_corpus, _ = reader.read_corpus(index='2', pick_test=False)
+    # id2word, word2id = reader.read_glossary()
+    train_corpus, _, _ = reader.read_corpus(index='1', pick_valid=False, pick_test=False)
     pretrained_wv = reader.read_initw2v()
 
-    train_inputs = []
-    train_lenth = []
-    train_labels = []
-    train_num = 0
-    for item in train_corpus:
-        train_inputs.append(item[0][0])
-        train_lenth.append(int(item[0][1]))
-        train_labels.append(1 if item[1] is 'T' else 0)
-        train_num += 1
-
-    valid_inputs = []
-    valid_lenth = []
-    valid_labels = []
-    valid_num = 0
-    for item in valid_corpus:
-        valid_inputs.append(item[0][0])
-        valid_lenth.append(int(item[0][1]))
-        valid_labels.append(1 if item[1] is 'T' else 0)
-        valid_num += 1
     end = time.time()
     print("Read finished -- {:.4f} sec".format(end-start))
 
@@ -114,382 +101,297 @@ def train(sess):
     start = end
 
     model = EncoderModel(
-        batch_size=FLAGS.batch_size,
+        max_seq_size=120,
         glossary_size=FLAGS.glossary_size,
         embedding_size=FLAGS.embedding_size,
         hidden_size=FLAGS.hidden_size,
-        attn_lenth=FLAGS.attn_lenth
+        attn_lenth=FLAGS.attn_lenth,
+        learning_rate=0.01
     )
-    model.build_train_graph()
-    model.build_validate_graph(1)
+    model.buildTrainGraph()
 
     init = tf.global_variables_initializer()
-    sess.run(init, feed_dict={model.pretrained_wv: pretrained_wv})
-    # sess.run(init)
-    saver = tf.train.Saver(max_to_keep=10)
+    # sess.run(init, feed_dict={model.pretrained_wv: pretrained_wv})
+    sess.run(init)
+
+    saver = tf.train.Saver(tf.trainable_variables(),
+        # [
+        #     model.embeddings,
+        #     model.lstm_fw_cell.weights,
+        #     model.lstm_bw_cell.weights,
+        #     model.attn_w,
+        #     model.attn_b,
+        #     model.attn_u,
+        #     model.inte_attn_w,
+        #     model.inte_attn_b,
+        #     model.inte_attn_u,
+        #     model.merge_inde_w,
+        #     model.merge_inde_b,
+        #     model.merge_inte_w,
+        #     model.merge_inte_b
+        # ],
+        max_to_keep=10)
     train_writer = tf.summary.FileWriter(logdir=FLAGS.tensorboard_dir, graph=sess.graph)
 
     end = time.time()
     print("Building model finished -- {:.4f} sec".format(end - start))
 
-    # if not restore_from_checkpoint(sess, saver, FLAGS.ckpt_dir):
-    #     return
+    if not restore_from_checkpoint(sess, saver, FLAGS.ckpt_dir):
+        return
     step_global = 0
     sum_loss = 0
-    sum_dev_loss = 0
+    # sum_dev_loss = 0
     sum_acc_t = 0
-    sum_acc_d = 0
+    # sum_acc_d = 0
     # max_acc = 0
-    lr = 0.001
-    valid_labels = np.reshape(valid_labels, [valid_num, 1])
-
 
     print("Training initialized")
     start = time.time()
 
-    for inputs, lenth, labels in get_batches(train_inputs, train_lenth, train_labels, train_num):
-        step_global += 1
-        labels = np.reshape(labels, [FLAGS.batch_size, 1])
-        feed_dict = {
-            model.inputs: inputs,
-            model.lenth: lenth,
-            model.labels: labels,
-            model.learning_rate: lr
-        }
-        loss, _, t_scalar, t_acc = sess.run([model.loss,
-                                            model.optimizer,
-                                            model.train_scalar,
-                                            model.train_accuracy],
-                                     feed_dict=feed_dict)
-        sum_loss += loss
-        sum_acc_t += t_acc
-
-        for dev_inputs, dev_lenth, dev_labels in get_batches(valid_inputs, valid_lenth, valid_labels, valid_num):
-            dev_feed_dict = {
-                model.dev_inputs: dev_inputs,
-                model.dev_lenth: dev_lenth,
-                model.dev_labels: dev_labels
+    for epoch in range(FLAGS.epoches):
+        for train_title_input, train_title_lenth, train_text_inputs, train_text_lenths, train_label in get_piece(train_corpus):
+            step_global += 1
+            feed_dict = {
+                model.title_input: train_title_input,
+                model.title_lenth: train_title_lenth,
+                model.text_inputs: train_text_inputs,
+                model.text_lenths: train_text_lenths,
+                model.label: train_label
             }
-            dev_loss, d_scalar, d_acc, w2v = sess.run([model.dev_loss,
-                                                       model.dev_scalar,
-                                                       model.dev_accuracy,
-                                                       model.embeddings],
-                                                      feed_dict=dev_feed_dict)
-            sum_dev_loss += dev_loss
-            sum_acc_d += d_acc
 
-        sum_dev_loss /= valid_num
-        sum_acc_d /= valid_num
+            loss, _, t_scalar, t_acc = sess.run([model.loss,
+                                                model.optimizer,
+                                                model.train_scalar,
+                                                model.train_accuracy],
+                                         feed_dict=feed_dict)
+            # print(aaaa, bbbb, loss)
+            sum_loss += loss
+            sum_acc_t += t_acc
 
-        def eval_ws(ws_list):
-            from scipy import stats
-            from numpy import linalg as LA
+            # for dev_inputs, dev_lenth, dev_labels in get_batches(valid_inputs, valid_lenth, valid_labels, valid_num):
+            #     dev_feed_dict = {
+            #         model.dev_inputs: dev_inputs,
+            #         model.dev_lenth: dev_lenth,
+            #         model.dev_labels: dev_labels
+            #     }
+            #     dev_loss, d_scalar, d_acc, w2v = sess.run([model.dev_loss,
+            #                                                model.dev_scalar,
+            #                                                model.dev_accuracy,
+            #                                                model.embeddings],
+            #                                               feed_dict=dev_feed_dict)
+            #     sum_dev_loss += dev_loss
+            #     sum_acc_d += d_acc
+            #
+            # sum_dev_loss /= valid_num
+            # sum_acc_d /= valid_num
 
-            logits = []
-            real = []
-            eval = []
+            # def eval_ws(ws_list):
+            #     from scipy import stats
+            #     from numpy import linalg as LA
+            #
+            #     logits = []
+            #     real = []
+            #     eval = []
+            #
+            #     for iter_ws in ws_list:
+            #         if iter_ws[0] not in id2word or iter_ws[1] not in id2word:
+            #             continue
+            #         else:
+            #             A = word2id[iter_ws[0]]
+            #             B = word2id[iter_ws[1]]
+            #             real.append(iter_ws[2])
+            #             logits.extend([w2v[A], w2v[B]])
+            #
+            #     for i in range(len(logits) // 2):
+            #         A_vec = logits[2 * i]
+            #         B_vec = logits[2 * i + 1]
+            #         normed_A_vec = LA.norm(A_vec, axis=0)
+            #         normed_B_vec = LA.norm(B_vec, axis=0)
+            #         sim = sum(np.multiply(A_vec, B_vec))
+            #         eval.append(sim / normed_A_vec / normed_B_vec)
+            #
+            #     pearsonr = stats.pearsonr(real, eval)[0]
+            #     spearmanr = stats.spearmanr(real, eval).correlation
+            #     return pearsonr, spearmanr
 
-            for iter_ws in ws_list:
-                if iter_ws[0] not in id2word or iter_ws[1] not in id2word:
-                    continue
-                else:
-                    A = word2id[iter_ws[0]]
-                    B = word2id[iter_ws[1]]
-                    real.append(iter_ws[2])
-                    logits.extend([w2v[A], w2v[B]])
 
-            for i in range(len(logits) // 2):
-                A_vec = logits[2 * i]
-                B_vec = logits[2 * i + 1]
-                normed_A_vec = LA.norm(A_vec, axis=0)
-                normed_B_vec = LA.norm(B_vec, axis=0)
-                sim = sum(np.multiply(A_vec, B_vec))
-                eval.append(sim / normed_A_vec / normed_B_vec)
+            if step_global % FLAGS.save_every_n == 0:
+                end = time.time()
+                print("Training: Average loss at step {}: {};".format(step_global, sum_loss[0] / FLAGS.save_every_n),
+                      "time: {:.4f} sec;".format(end - start),
+                      "accuracy rate: {:.4f}".format(sum_acc_t[0] / FLAGS.save_every_n))
+                # print("Validation: Average loss: {};".format(sum_dev_loss / FLAGS.save_every_n),
+                #       "accuracy rate: {:.4f}".format(sum_acc_d / FLAGS.save_every_n))
 
-            pearsonr = stats.pearsonr(real, eval)[0]
-            spearmanr = stats.spearmanr(real, eval).correlation
-            return pearsonr, spearmanr
+                saver.save(sess, FLAGS.ckpt_dir + "/step{}.ckpt".format(step_global))
 
+                train_writer.add_summary(t_scalar, step_global)
+                # ac_scalar = tf.Summary(value=[tf.Summary.Value(tag="accuracy rate", simple_value=sum_acc_d / FLAGS.save_every_n)])
+                # train_writer.add_summary(ac_scalar, step_global)
 
-        if step_global % FLAGS.save_every_n == 0:
-            end = time.time()
-            print("Training: Average loss at step {}: {};".format(step_global, sum_loss / FLAGS.save_every_n),
-                  "time: {:.4f} sec;".format(end - start),
-                  "accuracy rate: {:.4f}".format(sum_acc_t / FLAGS.save_every_n))
-            print("Validation: Average loss: {};".format(sum_dev_loss / FLAGS.save_every_n),
-                  "accuracy rate: {:.4f}".format(sum_acc_d / FLAGS.save_every_n))
+                sum_loss = 0
+                # sum_dev_loss = 0
+                sum_acc_t = 0
+                # sum_acc_d = 0
 
-            saver.save(sess, FLAGS.ckpt_dir + "/step{}.ckpt".format(step_global))
-
-            train_writer.add_summary(t_scalar, step_global)
-            # train_writer.add_summary(d_scalar, step_global)
-            ac_scalar = tf.Summary(value=[tf.Summary.Value(tag="accuracy rate", simple_value=sum_acc_d / FLAGS.save_every_n)])
-            train_writer.add_summary(ac_scalar, step_global)
-            # p_240, s_240 = eval_ws(reader.read_wordsim240())
-            # p_297, s_297 = eval_ws(reader.read_wordsim297())
-            # p_240_scalar = tf.Summary(value=[tf.Summary.Value(tag="ws240 pearsonr rate", simple_value=p_240)])
-            # s_240_scalar = tf.Summary(value=[tf.Summary.Value(tag="ws240 spearmanr rate", simple_value=s_240)])
-            # p_297_scalar = tf.Summary(value=[tf.Summary.Value(tag="ws297 pearsonr rate", simple_value=p_297)])
-            # s_297_scalar = tf.Summary(value=[tf.Summary.Value(tag="ws297 spearmanr rate", simple_value=s_297)])
-            # print("eval_ws240:")
-            # print('pearsonr:%s' % p_240)
-            # print('spearmanr:%s' % s_240)
-            # print("eval_ws297:")
-            # print('pearsonr:%s' % p_297)
-            # print('spearmanr:%s' % s_297)
-            # train_writer.add_summary(p_240_scalar, step_global)
-            # train_writer.add_summary(s_240_scalar, step_global)
-            # train_writer.add_summary(p_297_scalar, step_global)
-            # train_writer.add_summary(s_297_scalar, step_global)
-
-            sum_loss = 0
-            sum_dev_loss = 0
-            sum_acc_t = 0
-            sum_acc_d = 0
-
-            start = time.time()
-
+                start = time.time()
 
 def test(sess):
-    _, _, test_corpus = reader.read_corpus(index='1_0.2', pick_train=False, pick_valid=False, pick_test=True)
-    # test_corpus, _, _ = reader.read_corpus(index=0, pick_train=True, pick_valid=False, pick_test=False)
-    glossary, word2id = reader.read_glossary()
+    _, _, test_corpus = reader.read_corpus(index='1', pick_train=False, pick_valid=False, pick_test=True)
+    # _, test_corpus, _ = reader.read_corpus(index='1', pick_train=False, pick_valid=True, pick_test=False)
 
-    test_inputs = []
-    test_lenth = []
+    model = EncoderModel(
+        max_seq_size=120,
+        glossary_size=FLAGS.glossary_size,
+        embedding_size=FLAGS.embedding_size,
+        hidden_size=FLAGS.hidden_size,
+        attn_lenth=FLAGS.attn_lenth,
+        learning_rate=0.01
+    )
+    model.buildTrainGraph()
+
+    init = tf.global_variables_initializer()
+    # sess.run(init, feed_dict={model.pretrained_wv: pretrained_wv})
+    sess.run(init)
+    saver = tf.train.Saver(tf.trainable_variables())
+
+    if not restore_from_checkpoint(sess, saver, FLAGS.ckpt_dir):
+        return
+    sum_loss = 0
+    sum_acc_t = 0
+    test_logits = []
     test_labels = []
-    test_num = 0
-    for item in test_corpus:
-        test_inputs.append(item[0][0])
-        test_lenth.append(int(item[0][1]))
-        if item[1] in [1, 'T', 1.0]:
-            test_labels.append(1)
-        elif item[1] in [0, 'F', 0.0]:
-            test_labels.append(0)
-        test_num += 1
+    i = 2
 
+    print("Test initialized")
+    start = time.time()
+
+    for test_title_input, test_title_lenth, test_text_inputs, test_text_lenths, test_label in get_piece(test_corpus):
+        feed_dict = {
+            model.title_input: test_title_input,
+            model.title_lenth: test_title_lenth,
+            model.text_inputs: test_text_inputs,
+            model.text_lenths: test_text_lenths,
+            model.label: test_label
+        }
+
+        loss, t_acc, logit, label = sess.run([model.loss,
+                                                        model.train_accuracy,
+                                                        model._logits,
+                                                        model._labels],
+                                                 feed_dict=feed_dict)
+        print(i, logit, label)
+        i+= 1
+        sum_loss += loss
+        sum_acc_t += t_acc
+        test_logits.append(logit)
+        test_labels.append(label)
+
+    def f_value():
+        # 真正例
+        TP = 0
+        # 假正例
+        FP = 0
+        # 假反例
+        FN = 0
+        # 真反例
+        TN = 0
+        
+        # We pay more attention on negative samples.
+        for i in range(len(test_corpus)):
+            if test_labels[i] == 0 and test_logits[i] == 0:
+                TP += 1
+            elif test_labels[i] == 0 and test_logits[i] == 1:
+                FN += 1
+            elif test_labels[i] == 1 and test_logits[i] == 0:
+                FP += 1
+            elif test_labels[i] == 1 and test_logits[i] == 1:
+                TN += 1
+        
+        P = TP / (TP + FP + 0.0001)
+        R = TP / (TP + FN + 0.0001)
+        F = 2 * P * R / (P + R)
+        P_ = TN / (TN + FN + 0.0001)
+        R_ = TN / (TN + FP + 0.0001)
+        F_ = 2 * P_ * R_ / (P_ + R_)
+
+        print("About negative samples:")
+        print("     precision rate: {:.4f}".format(P))
+        print("     recall rate: {:.4f}".format(R))
+        print("     f-value: {:.4f}".format(F))
+        
+        print("About positive samples:")
+        print("     precision rate: {:.4f}".format(P_))
+        print("     recall rate: {:.4f}".format(R_))
+        print("     f-value: {:.4f}".format(F_))
+        
+    end = time.time()
+    print("Average loss;".format(sum_loss[0] / len(test_corpus)),
+          "time: {:.4f} sec;".format(end - start),
+          "accuracy rate: {:.4f}".format(sum_acc_t[0] / len(test_corpus)))
+    f_value()
+
+
+
+def compile(sess, stage):
     model = EncoderModel(
-        batch_size=FLAGS.batch_size,
-        glossary_size=FLAGS.glossary_size,
-        embedding_size=FLAGS.embedding_size,
-        hidden_size=FLAGS.hidden_size,
-        attn_lenth=FLAGS.attn_lenth
-    )
-    model.build_test_graph()
-
-    saver = tf.train.Saver()
-    test_labels = np.reshape(test_labels, [test_num, 1])
-    test_feed_dict = {
-        model.test_inputs: test_inputs,
-        model.test_lenth: test_lenth,
-        model.test_labels: test_labels
-    }
-
-    if restore_from_checkpoint(sess, saver, 'save/pt_bi_lstm_attn/1'):
-        # test_loss, accuracy, expection, w2v, alpha = sess.run(
-        #     [model.test_loss, model.test_accuracy, model.expection, model.embeddings, model.alpha],
-        #                               feed_dict=test_feed_dict)
-        test_loss, accuracy, expection, w2v = sess.run(
-            [model.test_loss, model.test_accuracy, model.expection, model.embeddings],
-                                      feed_dict=test_feed_dict)
-
-        for i in range(test_num):
-            print([glossary[word] for word in test_inputs[i]])
-            print(test_inputs[i])
-            # print(alpha[i])
-            print(test_labels[i], expection[i])
-
-        def f_value():
-            # 真正例
-            TP = 0
-            # 假正例
-            FP = 0
-            # 假反例
-            FN = 0
-            # 真反例
-            TN = 0
-
-            # We pay more attention on negative samples.
-            for i in range(test_num):
-                if test_labels[i] == 0 and expection[i] == 0:
-                    TP += 1
-                elif test_labels[i] == 0 and expection[i] == 1:
-                    FN += 1
-                elif test_labels[i] == 1 and expection[i] == 0:
-                    FP += 1
-                elif test_labels[i] == 1 and expection[i] == 1:
-                    TN += 1
-
-            P = TP / (TP + FP + 0.0001)
-            R = TP / (TP + FN + 0.0001)
-            F = 2 * P * R / (P + R)
-            P_ = TN / (TN + FP + 0.0001)
-            R_ = TN / (TN + FN + 0.0001)
-            F_ = 2 * P_ * R_ / (P_ + R_)
-
-            print("Validation: Average loss: {};".format(test_loss))
-            print("     accuracy rate: {:.4f}".format(accuracy))
-            print("About negative samples:")
-            print("     precision rate: {:.4f}".format(P))
-            print("     recall rate: {:.4f}".format(R))
-            print("     f-value: {:.4f}".format(F))
-
-            print("About positive samples:")
-            print("     precision rate: {:.4f}".format(P_))
-            print("     recall rate: {:.4f}".format(R_))
-            print("     f-value: {:.4f}".format(F_))
-
-        def eval_ws(ws_list):
-            from scipy import stats
-            from numpy import linalg as LA
-
-            logits = []
-            real = []
-            eval = []
-
-            for iter_ws in ws_list:
-                if iter_ws[0] not in glossary or iter_ws[1] not in glossary:
-                    continue
-                else:
-                    A = word2id[iter_ws[0]]
-                    B = word2id[iter_ws[1]]
-                    real.append(iter_ws[2])
-                    logits.extend([w2v[A], w2v[B]])
-
-            for i in range(len(logits) // 2):
-                A_vec = logits[2 * i]
-                B_vec = logits[2 * i + 1]
-                normed_A_vec = LA.norm(A_vec, axis=0)
-                normed_B_vec = LA.norm(B_vec, axis=0)
-                sim = sum(np.multiply(A_vec, B_vec))
-                eval.append(sim / normed_A_vec / normed_B_vec)
-                # print(sim/normed_A_vec/normed_B_vec)
-
-            print('pearsonr:%s' % (stats.pearsonr(real, eval)[0]))
-            print('spearmanr:%s' % (stats.spearmanr(real, eval).correlation))
-
-        f_value()
-        eval_ws(reader.read_wordsim240())
-        eval_ws(reader.read_wordsim297())
-
-    else:
-        print("error!")
-
-def test_without_eval(sess):
-    _, _, test_corpus = reader.read_corpus(index=1, pick_train=False, pick_valid=False, pick_test=True)
-
-    test_inputs = []
-    test_lenth = []
-    test_num = 0
-    for item in test_corpus:
-        test_inputs.append(item[0][0])
-        test_lenth.append(int(item[0][1]))
-        test_num += 1
-
-    model = EncoderModel(
-        batch_size=FLAGS.batch_size,
-        glossary_size=FLAGS.glossary_size,
-        embedding_size=FLAGS.embedding_size,
-        hidden_size=FLAGS.hidden_size,
-        attn_lenth=FLAGS.attn_lenth
-    )
-    model.build_test_graph()
-
-    saver = tf.train.Saver()
-
-    expection = []
-    if restore_from_checkpoint(sess, saver, 'save/pt_bi_lstm_attn/1'):
-        for piece_inputs, piece_lenth in get_nolabel_batches(test_inputs, test_lenth, test_num):
-            test_feed_dict = {
-                model.test_inputs: piece_inputs,
-                model.test_lenth: piece_lenth
-            }
-            piece_expect = np.reshape(sess.run([model.expection], feed_dict=test_feed_dict), [-1])
-            expection.extend(piece_expect)
-    return expection
-
-
-
-def test_onesent(sess, sent):
-    import jieba
-    import re
-    glossary, word2id = reader.read_glossary()
-
-    temp = list(jieba.cut(sent))
-    for index, item in enumerate(temp):
-        if item in [' ', '\u3000', '    ']:
-            temp.remove(item)
-    for index, item in enumerate(temp):
-        word = item.lower()
-        word = re.sub(r'[0-9]+', '^数', word)
-        if word not in glossary:
-            word = '^替'
-        temp[index] = word
-    temp.append('^终')
-    num = len(temp)
-    while (len(temp)) < 60:
-        temp.append('^填')
-
-    print(sent)
-    print(temp)
-
-    sent = np.array([word2id[item] for item in temp])
-    print(sent)
-
-    model = EncoderModel(
-        batch_size=FLAGS.batch_size,
-        glossary_size=FLAGS.glossary_size,
-        embedding_size=FLAGS.embedding_size,
-        hidden_size=FLAGS.hidden_size,
-        attn_lenth=FLAGS.attn_lenth
-    )
-    model.build_test_graph()
-
-    saver = tf.train.Saver()
-
-    if restore_from_checkpoint(sess, saver, 'save/pt_bi_lstm_attn/2'):
-        result, alpha = sess.run([model.expection, model.alpha], feed_dict={model.test_inputs: [sent], model.test_lenth: [num]})
-        print("Predict result: ")
-        print(alpha)
-        print(result[0])
-
-
-def compile(stage):
-    model = EncoderModel(
-        batch_size=FLAGS.batch_size,
-        glossary_size=FLAGS.glossary_size,
-        embedding_size=FLAGS.embedding_size,
-        hidden_size=FLAGS.hidden_size,
-        attn_lenth=FLAGS.attn_lenth
+        max_seq_size=100,
+        glossary_size=30000,
+        embedding_size=400,
+        hidden_size=300,
+        attn_lenth=300,
+        learning_rate=0.1
     )
     if stage is 'train':
-        model.build_train_graph()
-        # model.build_validate_graph(1)
-    elif stage is 'test':
-        model.build_test_graph()
+        model.buildTrainGraph()
+
+
+def reload_model(sess):
+    model = EncoderModel(
+        max_seq_size=120,
+        glossary_size=FLAGS.glossary_size,
+        embedding_size=FLAGS.embedding_size,
+        hidden_size=FLAGS.hidden_size,
+        attn_lenth=FLAGS.attn_lenth,
+        learning_rate=0.01
+    )
+    # model.loadPreTrainedParameters()
+    model.buildTrainGraph()
+    init = tf.global_variables_initializer()
+    sess.run(init)
+    saver = tf.train.Saver()
+    if restore_from_checkpoint(sess, saver, 'save/temp'):
+        print(sess.run(model.lstm_fw_cell.weights))
+
+    # embeddings, attn_w, attn_b, attn_u = reader.read_pretrained()
+    # sess.run(init, feed_dict={
+    #     model.pretrained_embeddings: embeddings,
+    #     model.pretrained_attn_w: attn_w,
+    #     model.pretrained_attn_b: attn_b,
+    #     model.pretrained_attn_u: attn_u
+    # })
+    #
+    # saver = tf.train.Saver(
+    #     [model.rnn_fw_cell.weights[0],
+    #      model.rnn_fw_cell.weights[1],
+    #      model.rnn_bw_cell.weights[0],
+    #      model.rnn_bw_cell.weights[1]]
+    # )
+    # save1 = tf.train.Saver()
+
+    # if restore_from_checkpoint(sess, saver, 'save/temp/1'):
+    #     print(sess.run(model.rnn_fw_cell.weights))
+    #     print(sess.run(model.lstm_fw_cell.weights))
+    # save1.save(sess, 'save/temp/pretrained.ckpt')
+
+
 
 def main(_):
     with tf.Graph().as_default(), tf.Session() as sess:
-        train(sess)
-        # test(sess)
-        # test_onesent(sess, '手机电池炸伤机主 商家称便宜货不保质量')
-        # test_onesent(sess, '乐利来案例:医科大学朱志华副教授就自身股骨头坏死改善的讲述')
-        # test_onesent(sess, '茅台经营成功')
-        # compile('test')
-
-        # ext = test_without_eval(sess)
-        # # file = open('results/test_1_results', 'w', encoding='utf8')
-        # import pandas as pd
-        # df = pd.read_excel('data/corpus/1.xlsx')
-        # text = df.iloc[:, [0]]
-        # text = [i[0] for i in np.array(text).tolist()]
-        # data = [[ext[i], text[i]] for i in range(len(text))]
-        # print(len(ext))
-        # print(len(text))
-        # for i in range(len(text)):
-        #     line = str(i+1) + ' ' + str(ext[i]) + ' ' + str(text[i]) + '\n'
-        #     file.write(line)
-        # pd.DataFrame(data).to_excel('results/test_1_results.xlsx', index=True, header=False)
+        # train(sess)
+        test(sess)
+        # reload_model(sess)
+        # compile(sess, 'train')
 
 if __name__ == '__main__':
     tf.app.run()

@@ -15,15 +15,18 @@ def only_read_exls():
     # df_ = pd.DataFrame()
 
 def read_exls(with_labels=False):
-    df = pd.read_excel('data/corpus/excel/2.xlsx')
+    df = pd.read_excel('data/corpus/excel/2_test_full.xlsx')
     if with_labels is False:
         text = df.iloc[:, [0]]
         text = [[i[0]] for i in np.array(text).tolist()]
     else:
-        print(df)
-        text = df.iloc[:, [0, 1]]
-        text = [[i[0], i[1]] for i in np.array(text).tolist()]
+        # print(df)
+        text = df.iloc[:, [0, 1, 2]]
+        text = [[i[0], i[1], i[2]] for i in np.array(text).tolist()]
+        text = np.array(text).tolist()
     return text
+
+
 
 def process_text(text):
     glossary, word2id = reader.read_glossary()
@@ -129,7 +132,7 @@ def read_text():
     print(np.shape(text_))
     print(len(text))
     print(max([i[0][1] for i in text]))
-read_text()
+
 
 def shuffle_text():
     with open('data/corpus/train_2_origin', 'rb') as fp:
@@ -146,7 +149,7 @@ def shuffle_text():
         pickle.dump(valid, fp)
     with open('data/corpus/test_2', 'wb') as fp:
         pickle.dump(test, fp)
-shuffle_text()
+
 
 
 def read_results():
@@ -157,3 +160,44 @@ def read_results():
         if item[1] == '0.0':
             print(item[0], item[1], item[2])
 
+
+
+
+def afterProcess():
+    with open('data/corpus/raw', 'rb') as fp:
+        text = pickle.load(fp)
+    for item in text:
+        if item[1][0][0] == '^填':
+            item[1] = [[['^填']*120, 0]]
+        item[1][0][0] = [WORD2ID[word] for word in item[1][0][0]]
+        for jtem in item[2]:
+            if jtem == []:
+                jtem.append([['^填'] * 120, 0])
+            jtem[0] = [WORD2ID[word] for word in jtem[0]]
+        if item[2] == []:
+            item[2] = [[[WORD2ID['^填']]*120, 0]]
+    with open('data/corpus/raw_', 'wb') as fp:
+        pickle.dump(text, fp)
+
+
+def write():
+    with open('data/corpus/raw_', 'rb') as fp:
+        text = pickle.load(fp)
+    text_true = []
+    text_false = []
+    for item in text:
+        if item[0] == 'T':
+            text_true.append(item)
+        elif item[0] == 'F':
+            text_false.append(item)
+    with open('data/corpus/raw_true', 'wb') as fp:
+        pickle.dump(text_true, fp)
+    with open('data/corpus/raw_false', 'wb') as fp:
+        pickle.dump(text_false, fp)
+
+def sample_from_raw():
+    import random
+    with open('data/corpus/raw_true', 'rb') as fp:
+        text_true = pickle.load(fp)
+    with open('data/corpus/raw_false', 'rb') as fp:
+        text_false = pickle.load(fp)

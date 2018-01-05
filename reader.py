@@ -27,12 +27,14 @@ def read_corpus(index='', pick_train=True, pick_valid=True, pick_test=True):
     return train_data, valid_data, test_data
 
 
+
 def read_initw2v():
     with open('data/initw2v_use', 'rb') as fp:
         embedding = pickle.load(fp)
     return embedding
 
-print(np.shape(read_initw2v()))
+
+
 
 def read_wordsim240():
     file_sim = open('data/words-240/Words-240.txt', 'r', encoding='utf8')
@@ -52,3 +54,15 @@ def read_wordsim297():
         temp[2] = float(temp[2])
         ws297_list.append(temp)
     return ws297_list
+
+
+def read_pretrained():
+    with open('data/pretrained/embeddings', 'rb') as fp:
+        embeddings = pickle.load(fp)
+    with open('data/pretrained/attn_w', 'rb') as fp:
+        attn_w = pickle.load(fp)
+    with open('data/pretrained/attn_b', 'rb') as fp:
+        attn_b = pickle.load(fp)
+    with open('data/pretrained/attn_u', 'rb') as fp:
+        attn_u = pickle.load(fp)
+    return embeddings, attn_w, attn_b, attn_u

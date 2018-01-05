@@ -2,6 +2,7 @@ import reader
 import re
 import jieba
 import numpy as np
+import pickle
 
 VOCABULARY, WORD2ID = reader.read_glossary()
 
@@ -106,25 +107,88 @@ def sent2list(batch_text):
         num = len(temp)
         return [temp, num]
 
-def paddingList(batch_text):
-    max_len = max([i[1] for i in batch_text])
+def paddingList(batch_text, seq_size):
+    result = []
     for index, item in enumerate(batch_text):
-        while (len(item[0])) < max_len:
-            item[0].append('^填')
-    return batch_text
+        if (item != None):
+            if (len(item[0]) <= seq_size):
+                while (len(item[0])) < seq_size:
+                    item[0].append('^填')
+                result.append(item)
+        else:
+            result.append([[['^填']*seq_size, 0]])
+    return result
+
+
+
 
 def test():
-    import pickle
-    with open('data/corpus/train_2_raw', 'rb') as fp:
+    with open('data/corpus/test_1', 'rb') as fp:
         text = pickle.load(fp)
     write_to_file = []
-    item = text[250]
-    item_flag = item[0]
-    item_list = [sent2list(item[1])]
-    for i in splitSentence(item[2]):
-        print(i)
-    item_list.extend(sent2list(splitSentence(item[2])))
-    for i in item_list:
-        print(i)
+    for item in text:
+        item_flag = item[0]
+        item_title = [sent2list(item[1])]
+        item_text = sent2list(splitSentence(item[2]))
+        item_title = paddingList(item_title, seq_size=120)
+        item_text = paddingList(item_text, seq_size=120)
+        write_to_file.append([item_flag, item_title, item_text])
 
-test()
+    with open('data/corpus/test_1_raw', 'wb') as fp:
+        pickle.dump(write_to_file, fp)
+
+def afterProcess():
+    with open('data/corpus/test_1_raw', 'rb') as fp:
+        text = pickle.load(fp)
+    for item in text:
+        item[0] = 'T' if item[0] == '1' else 'F'
+        item[1][0][0] = [WORD2ID[word] for word in item[1][0][0]]
+        for jtem in item[2]:
+            jtem[0] = [WORD2ID[word] for word in jtem[0]]
+        if item[2] == []:
+            item[2] = [[[WORD2ID['^填']]*120, 0]]
+    with open('data/corpus/test_1', 'wb') as fp:
+        pickle.dump(text, fp)
+
+
+def write():
+    with open('data/corpus/raw_', 'rb') as fp:
+        text = pickle.load(fp)
+    text_true = []
+    text_false = []
+    for item in text:
+        if item[0] == 'T':
+            text_true.append(item)
+        elif item[0] == 'F':
+            text_false.append(item)
+    with open('data/corpus/raw_true', 'wb') as fp:
+        pickle.dump(text_true, fp)
+    with open('data/corpus/raw_false', 'wb') as fp:
+        pickle.dump(text_false, fp)
+
+def sample_from_raw():
+    import random
+    with open('data/corpus/raw_true', 'rb') as fp:
+        text_true = pickle.load(fp)
+    with open('data/corpus/raw_false', 'rb') as fp:
+        text_false = pickle.load(fp)
+
+    print(round(len(text_false)*0.3))
+    text_false = random.sample(text_false, round(len(text_false)*0.3))
+    text = text_false + text_true
+    random.shuffle(text)
+    with open('data/corpus/train_0_subsample', 'wb') as fp:
+        pickle.dump(text, fp)
+
+
+
+def empty_check(filepath='raw_'):
+    with open('data/corpus/' + filepath, 'rb') as fp:
+        text = pickle.load(fp)
+    for i in text:
+        if len(i[2]) > 500:
+            print(i)
+        if i[1][0][1] == 0 and len(i[2]) == 0:
+            print(i)
+
+# empty_check('train_0_subsample')
