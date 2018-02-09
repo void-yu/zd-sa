@@ -1,9 +1,10 @@
+import pickle
+import re
+
+import jieba
 import numpy as np
 import pandas as pd
-import pickle
 import reader
-import jieba
-import re
 
 
 def only_read_exls():
@@ -122,8 +123,8 @@ def read_text():
     #     num = 0
     #     for j in sent:
     #         if j == 35149:
-    #             num += 1
-    #     rate = num/i[0][1]
+    #             num += relu
+    #     rate = num/i[0][relu]
     #     if rate > 0.3:
     #         print(rate, i)
     #         text_.append(i)
@@ -199,7 +200,6 @@ def write():
         pickle.dump(text_false, fp)
 
 def sample_from_raw():
-    import random
     with open('data/corpus/raw_true', 'rb') as fp:
         text_true = pickle.load(fp)
     with open('data/corpus/raw_false', 'rb') as fp:

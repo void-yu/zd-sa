@@ -1,7 +1,9 @@
-import tensorflow as tf
-import reader
-import numpy as np
 import time
+
+import numpy as np
+import reader
+import tensorflow as tf
+
 
 class EncoderModel(object):
 
@@ -96,7 +98,7 @@ class EncoderModel(object):
         arg:
             inputs - shape=[batch_size, hidden_size]
         return:
-            outputs - shape=[batch_size, 1]
+            outputs - shape=[batch_size, relu]
     """
     def bi_sigmoid_layer(self, inputs):
         with tf.name_scope('lastlayer'), tf.variable_scope('lastlayer'):
@@ -152,10 +154,10 @@ def main():
         # train_num = 0
         # for item in train_corpus:
         #     train_inputs.append(item[0][0])
-        #     train_lenth.append(int(item[0][1]))
-        #     train_labels.append(1 if item[1] is 'T' else 0)
-        #     train_num += 1
-        # train_labels = np.reshape(train_labels, [-1, 1])
+        #     train_lenth.append(int(item[0][relu]))
+        #     train_labels.append(relu if item[relu] is 'T' else 0)
+        #     train_num += relu
+        # train_labels = np.reshape(train_labels, [-relu, relu])
         feed_dict = {
             model.inputs: np.random.rand(batch_size, 1000),
             model.lenth: [1000]*batch_size,

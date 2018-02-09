@@ -35,7 +35,7 @@ class EncoderModel(object):
     #     self.pretrained_embeddings = tf.placeholder(tf.float32, shape=[self.glossary_size, self.embedding_size])
     #     self.pretrained_attn_w = tf.placeholder(tf.float32, shape=[2*self.hidden_size, self.attn_lenth])
     #     self.pretrained_attn_b = tf.placeholder(tf.float32, shape=[self.attn_lenth])
-    #     self.pretrained_attn_u = tf.placeholder(tf.float32, shape=[self.attn_lenth, 1])
+    #     self.pretrained_attn_u = tf.placeholder(tf.float32, shape=[self.attn_lenth, relu])
 
 
 

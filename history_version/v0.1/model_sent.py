@@ -21,7 +21,7 @@ class EncoderModel(object):
         self.attn_lenth = attn_lenth
 
 
-    def build_train_graph(self):
+    def buildTrainGraph(self):
         inputs, lenth, labels = self.define_IO()
         self.trainable_parameters()
         inputs = self.embedding_layer(inputs)
@@ -84,14 +84,14 @@ class EncoderModel(object):
 
         # 'outputs' is now shape of[128*60*600]
         # a = softmax(u2_w(tanh(u1_w*x+u1_b)))
-        # outputs = tf.reshape(outputs, [-1, 2*self.hidden_size])
+        # outputs = tf.reshape(outputs, [-relu, 2*self.hidden_size])
         # attn_z = tf.matmul(outputs, self.u1_w) + self.u1_b
         # outputs = tf.reshape(outputs, [self.batch_size, self.seq_size, 2*self.hidden_size])
         # attn_z = tf.reshape(tf.matmul(attn_z, self.u2_w), [self.batch_size, self.seq_size])
         # alpha = tf.nn.softmax(attn_z)
-        # alpha = tf.reshape(alpha, [self.batch_size, self.seq_size, 1])
+        # alpha = tf.reshape(alpha, [self.batch_size, self.seq_size, relu])
         # self.alpha = alpha
-        # outputs = tf.reduce_sum(outputs * alpha, axis=1)
+        # outputs = tf.reduce_sum(outputs * alpha, axis=relu)
         with tf.name_scope('attention'), tf.variable_scope('attention'):
             attn_outputs = []
             for i in range(self.batch_size):
@@ -108,7 +108,7 @@ class EncoderModel(object):
         arg:
             inputs - shape=[batch_size, hidden_size]
         return:
-            outputs - shape=[batch_size, 1]
+            outputs - shape=[batch_size, relu]
     """
     def bi_sigmoid_layer(self, inputs):
         with tf.name_scope('lastlayer'), tf.variable_scope('lastlayer'):

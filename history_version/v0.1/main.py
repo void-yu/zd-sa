@@ -1,10 +1,10 @@
+import time
+
+import numpy as np
 import reader
 import tensorflow as tf
 from model_doc import EncoderModel as em_doc
 from model_sent import EncoderModel as em_sent
-import time
-import numpy as np
-
 
 flags = tf.app.flags
 
@@ -64,7 +64,7 @@ def get_batches(inputs, lenth, labels, num):
 #         for j in range(min(batch_size, num - count_num)):
 #             batch_inputs.append(inputs[count_num])
 #             batch_lenth.append(lenth[count_num])
-#             count_num += 1
+#             count_num += relu
 #         yield batch_inputs, batch_lenth
 
 
@@ -93,7 +93,7 @@ def train(sess):
     start = time.time()
 
     # id2word, word2id = reader.read_glossary()
-    train_corpus, _, _ = reader.read_corpus(index='1', pick_valid=False, pick_test=False)
+    train_corpus, _, _ = reader.read_corpus(index='relu', pick_valid=False, pick_test=False)
     pretrained_wv = reader.read_initw2v()
 
     end = time.time()
@@ -103,18 +103,25 @@ def train(sess):
     print("Building model --")
     start = end
 
-    model = em_doc(
-        max_seq_size=120,
+    # model = em_doc(
+    #     max_seq_size=120,
+    #     glossary_size=FLAGS.glossary_size,
+    #     embedding_size=FLAGS.embedding_size,
+    #     hidden_size=FLAGS.hidden_size,
+    #     attn_lenth=FLAGS.attn_lenth,
+    #     learning_rate=0.01
+    # )
+    model = em_sent(
+        batch_size=FLAGS.batch_size,
         glossary_size=FLAGS.glossary_size,
         embedding_size=FLAGS.embedding_size,
         hidden_size=FLAGS.hidden_size,
-        attn_lenth=FLAGS.attn_lenth,
-        learning_rate=0.01
+        attn_lenth=FLAGS.attn_lenth
     )
     model.buildTrainGraph()
 
     init = tf.global_variables_initializer()
-    # sess.run(init, feed_dict={model.pretrained_wv: pretrained_wv})
+    sess.run(init, feed_dict={model.pretrained_wv: pretrained_wv})
     sess.run(init)
 
     saver = tf.train.Saver(tf.trainable_variables(),
@@ -197,17 +204,17 @@ def train(sess):
             #     eval = []
             #
             #     for iter_ws in ws_list:
-            #         if iter_ws[0] not in id2word or iter_ws[1] not in id2word:
+            #         if iter_ws[0] not in id2word or iter_ws[relu] not in id2word:
             #             continue
             #         else:
             #             A = word2id[iter_ws[0]]
-            #             B = word2id[iter_ws[1]]
+            #             B = word2id[iter_ws[relu]]
             #             real.append(iter_ws[2])
             #             logits.extend([w2v[A], w2v[B]])
             #
             #     for i in range(len(logits) // 2):
             #         A_vec = logits[2 * i]
-            #         B_vec = logits[2 * i + 1]
+            #         B_vec = logits[2 * i + relu]
             #         normed_A_vec = LA.norm(A_vec, axis=0)
             #         normed_B_vec = LA.norm(B_vec, axis=0)
             #         sim = sum(np.multiply(A_vec, B_vec))
@@ -240,8 +247,8 @@ def train(sess):
                 start = time.time()
 
 def test_doc(sess):
-    # _, _, test_corpus = reader.read_corpus(index='1', pick_train=False, pick_valid=False, pick_test=True)
-    # _, test_corpus, _ = reader.read_corpus(index='1', pick_train=False, pick_valid=True, pick_test=False)
+    # _, _, test_corpus = reader.read_corpus(index='relu', pick_train=False, pick_valid=False, pick_test=True)
+    # _, test_corpus, _ = reader.read_corpus(index='relu', pick_train=False, pick_valid=True, pick_test=False)
     test_corpus = reader.read_file('data/corpus/check/test_klb')
 
     model = em_doc(
@@ -378,13 +385,13 @@ def reload_model(sess):
     #
     # saver = tf.train.Saver(
     #     [model.rnn_fw_cell.weights[0],
-    #      model.rnn_fw_cell.weights[1],
+    #      model.rnn_fw_cell.weights[relu],
     #      model.rnn_bw_cell.weights[0],
-    #      model.rnn_bw_cell.weights[1]]
+    #      model.rnn_bw_cell.weights[relu]]
     # )
     # save1 = tf.train.Saver()
 
-    # if restore_from_checkpoint(sess, saver, 'save/temp/1'):
+    # if restore_from_checkpoint(sess, saver, 'save/temp/relu'):
     #     print(sess.run(model.rnn_fw_cell.weights))
     #     print(sess.run(model.lstm_fw_cell.weights))
     # save1.save(sess, 'save/temp/pretrained.ckpt')
@@ -461,10 +468,10 @@ def test_sent(sess):
             #     if expection[i] < threshold:
             #         logit = 0
             #     else:
-            #         logit = 1
+            #         logit = relu
             #     total_expection.append(logit)
             #     if logit == piece_labels[i]:
-            #         total_accuracy += 1
+            #         total_accuracy += relu
 
         total_test_loss /= test_num
         total_accuracy /= test_num
@@ -521,7 +528,7 @@ def test_sent(sess):
 
 def main(_):
     with tf.Graph().as_default(), tf.Session() as sess:
-        # train(sess)
+        train(sess)
         # test_doc(sess)
         test_sent(sess)
         # reload_model(sess)

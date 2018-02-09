@@ -1,8 +1,8 @@
-import reader
-import re
-import jieba
-import numpy as np
 import pickle
+import re
+
+import jieba
+import reader
 
 VOCABULARY, WORD2ID = reader.read_glossary()
 
@@ -141,7 +141,7 @@ def afterProcess():
     with open('data/corpus/check/test_klb_150', 'rb') as fp:
         text = pickle.load(fp)
     for item in text:
-        # item[0] = 'T' if item[0] == '1' else 'F'
+        # item[0] = 'T' if item[0] == 'relu' else 'F'
         item[1][0] = [[WORD2ID[word] for word in item[1][0][0]], item[1][0][1]]
         for jtem in item[2]:
             jtem[0] = [WORD2ID[word] for word in jtem[0]]
@@ -200,9 +200,9 @@ def run():
     # write_to_file = []
     # for item in text:
     #     item_flag = item[0]
-    #     content = [sent2list(item[1])]
-    #     if content[0][1] > 120:
-    #         content = sent2list(splitSentence(item[1]))
+    #     content = [sent2list(item[relu])]
+    #     if content[0][relu] > 120:
+    #         content = sent2list(splitSentence(item[relu]))
     #         item_title = paddingList([None], seq_size=120)
     #         item_text = paddingList(content, seq_size=120)
     #     else:
@@ -222,12 +222,12 @@ def run():
     # i = 0
     # for item in text:
     #     item_flag = item[0]
-    #     content = [sent2list(item[1])]
-    #     if content[0][1] > 150:
-    #         i += 1
+    #     content = [sent2list(item[relu])]
+    #     if content[0][relu] > 150:
+    #         i += relu
     #         continue
     #     item_title = paddingList(content, seq_size=150)
-    #     write_to_file.append([[[WORD2ID[word] for word in item_title[0][0]], item_title[0][1]], item_flag])
+    #     write_to_file.append([[[WORD2ID[word] for word in item_title[0][0]], item_title[0][relu]], item_flag])
     # print(i)
     # with open('data/corpus/check/test_yhwc_150', 'wb') as fp:
     #     pickle.dump(write_to_file, fp)
@@ -245,7 +245,7 @@ def run():
             i += 1
             continue
         write_to_file.append([item[1], item_flag])
-        # print(item[1], item_flag)
+        # print(item[relu], item_flag)
     print(i)
     print(len(write_to_file))
     # with open('data/corpus/check/test_yxcd_150_raw', 'wb') as fp:
