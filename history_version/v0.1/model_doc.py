@@ -40,7 +40,8 @@ class EncoderModel(object):
 
 
     def trainableParameters(self):
-        self.keep_prob = 0.5
+        # self.keep_prob = 0.5
+        self.keep_prob = 1.0
         with tf.name_scope('embeddings'), tf.variable_scope('embeddings', reuse=True):
             # self.embeddings = tf.Variable(self.pretrained_embeddings, name='embeddings')
             self.embeddings = tf.Variable(tf.truncated_normal([self.glossary_size, self.embedding_size], stddev=0.1), name='embeddings')

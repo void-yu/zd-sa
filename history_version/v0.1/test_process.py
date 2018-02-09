@@ -15,17 +15,20 @@ def only_read_exls():
     # df_ = pd.DataFrame()
 
 def read_exls(with_labels=False):
-    df = pd.read_excel('data/corpus/excel/2_test_full.xlsx')
+    df = pd.read_excel('data/corpus/check/yhwc.xlsx')
     if with_labels is False:
         text = df.iloc[:, [0]]
         text = [[i[0]] for i in np.array(text).tolist()]
     else:
         # print(df)
-        text = df.iloc[:, [0, 1, 2]]
-        text = [[i[0], i[1], i[2]] for i in np.array(text).tolist()]
+        text = df.iloc[:, [0, 1]]
+        text = [[i[0], i[1]] for i in np.array(text).tolist()]
         text = np.array(text).tolist()
     return text
 
+# text = read_exls(True)
+# with open('data/corpus/check/yhwc', 'wb') as fp:
+#     pickle.dump(text, fp)
 
 
 def process_text(text):

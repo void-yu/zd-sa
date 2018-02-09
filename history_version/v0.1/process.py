@@ -116,7 +116,7 @@ def paddingList(batch_text, seq_size):
                     item[0].append('^填')
                 result.append(item)
         else:
-            result.append([[['^填']*seq_size, 0]])
+            result.append([['^填']*seq_size, 0])
     return result
 
 
@@ -138,16 +138,17 @@ def test():
         pickle.dump(write_to_file, fp)
 
 def afterProcess():
-    with open('data/corpus/test_1_raw', 'rb') as fp:
+    with open('data/corpus/check/test_klb_150', 'rb') as fp:
         text = pickle.load(fp)
     for item in text:
-        item[0] = 'T' if item[0] == '1' else 'F'
-        item[1][0][0] = [WORD2ID[word] for word in item[1][0][0]]
+        # item[0] = 'T' if item[0] == '1' else 'F'
+        item[1][0] = [[WORD2ID[word] for word in item[1][0][0]], item[1][0][1]]
         for jtem in item[2]:
             jtem[0] = [WORD2ID[word] for word in jtem[0]]
         if item[2] == []:
-            item[2] = [[[WORD2ID['^填']]*120, 0]]
-    with open('data/corpus/test_1', 'wb') as fp:
+            item[2] = [[[WORD2ID['^填']]*150, 0]]
+        print(item)
+    with open('data/corpus/check/test_klb_150', 'wb') as fp:
         pickle.dump(text, fp)
 
 
@@ -192,3 +193,62 @@ def empty_check(filepath='raw_'):
             print(i)
 
 # empty_check('train_0_subsample')
+
+def run():
+    # with open('data/corpus/check/klb', 'rb') as fp:
+    #     text = pickle.load(fp)
+    # write_to_file = []
+    # for item in text:
+    #     item_flag = item[0]
+    #     content = [sent2list(item[1])]
+    #     if content[0][1] > 120:
+    #         content = sent2list(splitSentence(item[1]))
+    #         item_title = paddingList([None], seq_size=120)
+    #         item_text = paddingList(content, seq_size=120)
+    #     else:
+    #         item_title = paddingList(content, seq_size=120)
+    #         item_text = paddingList(content, seq_size=120)
+    #     write_to_file.append([item_flag, item_title, item_text])
+    #
+    # with open('data/corpus/check/test_klb', 'wb') as fp:
+    #     pickle.dump(write_to_file, fp)
+    #
+    # afterProcess()
+
+
+    # with open('data/corpus/check/yhwc', 'rb') as fp:
+    #     text = pickle.load(fp)
+    # write_to_file = []
+    # i = 0
+    # for item in text:
+    #     item_flag = item[0]
+    #     content = [sent2list(item[1])]
+    #     if content[0][1] > 150:
+    #         i += 1
+    #         continue
+    #     item_title = paddingList(content, seq_size=150)
+    #     write_to_file.append([[[WORD2ID[word] for word in item_title[0][0]], item_title[0][1]], item_flag])
+    # print(i)
+    # with open('data/corpus/check/test_yhwc_150', 'wb') as fp:
+    #     pickle.dump(write_to_file, fp)
+
+
+    with open('data/corpus/check/klb', 'rb') as fp:
+        text = pickle.load(fp)
+    write_to_file = []
+    i = 0
+    print(len(text))
+    for item in text:
+        item_flag = item[0]
+        content = [sent2list(item[1])]
+        if content[0][1] > 150:
+            i += 1
+            continue
+        write_to_file.append([item[1], item_flag])
+        # print(item[1], item_flag)
+    print(i)
+    print(len(write_to_file))
+    # with open('data/corpus/check/test_yxcd_150_raw', 'wb') as fp:
+    #     pickle.dump(write_to_file, fp)
+
+run()

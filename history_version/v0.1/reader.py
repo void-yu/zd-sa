@@ -26,7 +26,11 @@ def read_corpus(index='', pick_train=True, pick_valid=True, pick_test=True):
             test_data = pickle.load(fp)
     return train_data, valid_data, test_data
 
-
+def read_file(filepath=''):
+    test_data = None
+    with open(filepath, 'rb') as fp:
+        test_data = pickle.load(fp)
+    return test_data
 
 def read_initw2v():
     with open('data/initw2v_use', 'rb') as fp:

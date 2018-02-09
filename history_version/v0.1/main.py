@@ -1,6 +1,7 @@
 import reader
 import tensorflow as tf
-from model_sgd import EncoderModel
+from model_doc import EncoderModel as em_doc
+from model_sent import EncoderModel as em_sent
 import time
 import numpy as np
 
@@ -31,6 +32,7 @@ flags.DEFINE_integer("batch_size", 1,
 flags.DEFINE_integer("max_seq_size", 120, "")
 flags.DEFINE_integer("epoches", 100,
                      "Number of epochs processed. I set only One batch is processed in One epoch.")
+flags.DEFINE_integer("max_batch_size", 1024, "")
 
 FLAGS = flags.FLAGS
 
@@ -76,6 +78,7 @@ def restore_from_checkpoint(sess, saver, dir):
 
 def get_piece(corpus):
     for index in range(len(corpus)):
+        print(corpus[index])
         title_input = [corpus[index][1][0][0]]
         title_lenth = [corpus[index][1][0][1]]
         text_inputs = [item[0] for item in corpus[index][2]]
@@ -100,7 +103,7 @@ def train(sess):
     print("Building model --")
     start = end
 
-    model = EncoderModel(
+    model = em_doc(
         max_seq_size=120,
         glossary_size=FLAGS.glossary_size,
         embedding_size=FLAGS.embedding_size,
@@ -236,11 +239,12 @@ def train(sess):
 
                 start = time.time()
 
-def test(sess):
-    _, _, test_corpus = reader.read_corpus(index='1', pick_train=False, pick_valid=False, pick_test=True)
+def test_doc(sess):
+    # _, _, test_corpus = reader.read_corpus(index='1', pick_train=False, pick_valid=False, pick_test=True)
     # _, test_corpus, _ = reader.read_corpus(index='1', pick_train=False, pick_valid=True, pick_test=False)
+    test_corpus = reader.read_file('data/corpus/check/test_klb')
 
-    model = EncoderModel(
+    model = em_doc(
         max_seq_size=120,
         glossary_size=FLAGS.glossary_size,
         embedding_size=FLAGS.embedding_size,
@@ -261,7 +265,7 @@ def test(sess):
     sum_acc_t = 0
     test_logits = []
     test_labels = []
-    i = 2
+    i = 0
 
     print("Test initialized")
     start = time.time()
@@ -280,10 +284,11 @@ def test(sess):
                                                         model._logits,
                                                         model._labels],
                                                  feed_dict=feed_dict)
+        i += 1
         print(i, logit, label)
-        i+= 1
         sum_loss += loss
         sum_acc_t += t_acc
+        print(sum_acc_t, sum_acc_t[0] / i)
         test_logits.append(logit)
         test_labels.append(label)
 
@@ -334,7 +339,7 @@ def test(sess):
 
 
 def compile(sess, stage):
-    model = EncoderModel(
+    model = em_doc(
         max_seq_size=100,
         glossary_size=30000,
         embedding_size=400,
@@ -347,7 +352,7 @@ def compile(sess, stage):
 
 
 def reload_model(sess):
-    model = EncoderModel(
+    model = em_doc(
         max_seq_size=120,
         glossary_size=FLAGS.glossary_size,
         embedding_size=FLAGS.embedding_size,
@@ -384,12 +389,141 @@ def reload_model(sess):
     #     print(sess.run(model.lstm_fw_cell.weights))
     # save1.save(sess, 'save/temp/pretrained.ckpt')
 
+def get_test_batches(inputs, lenth, labels, num):
+    batch_size = FLAGS.max_batch_size
+    count_num = 0
 
+    while(count_num < num):
+        batch_inputs = []
+        batch_lenth = []
+        batch_labels = []
+        for j in range(min(batch_size, num - count_num)):
+            batch_inputs.append(inputs[count_num])
+            batch_lenth.append(lenth[count_num])
+            batch_labels.append(labels[count_num])
+            count_num += 1
+        yield batch_inputs, batch_lenth, batch_labels
+
+def test_sent(sess):
+    # _, _, test_corpus = reader.read_corpus(index='1_0.2', pick_train=False, pick_valid=False, pick_test=True)
+    # test_corpus, _, _ = reader.read_corpus(index=0, pick_train=True, pick_valid=False, pick_test=False)
+    _, _, test_corpus = reader.read_corpus(index='yhwc_150', pick_train=False, pick_valid=False, pick_test=True)
+
+    glossary, word2id = reader.read_glossary()
+
+    test_inputs = []
+    test_lenth = []
+    test_labels = []
+    test_num = 0
+    for item in test_corpus:
+        test_inputs.append(item[0][0])
+        test_lenth.append(int(item[0][1]))
+        if item[1] in [1, 'T', 1.0]:
+            test_labels.append(1)
+        elif item[1] in [0, 'F', 0.0]:
+            test_labels.append(0)
+        test_num += 1
+
+    model = em_sent(
+        batch_size=FLAGS.batch_size,
+        glossary_size=FLAGS.glossary_size,
+        embedding_size=FLAGS.embedding_size,
+        hidden_size=FLAGS.hidden_size,
+        attn_lenth=FLAGS.attn_lenth
+    )
+    model.build_test_graph(150)
+
+    saver = tf.train.Saver()
+    test_labels = np.reshape(test_labels, [test_num, 1])
+
+    if restore_from_checkpoint(sess, saver, 'save/pt-bi-lstm-attn'):
+        # test_loss, accuracy, expection, w2v, alpha = sess.run(
+        #     [model.test_loss, model.test_accuracy, model.expection, model.embeddings, model.alpha],
+        #                               feed_dict=test_feed_dict)
+        total_test_loss = 0
+        total_accuracy = 0
+        total_expection = []
+        # threshold = 0.9
+        for piece_inputs, piece_lenth, piece_labels in get_test_batches(test_inputs, test_lenth, test_labels, test_num):
+            piece_num = len(piece_inputs)
+            test_feed_dict = {
+                model.test_inputs: piece_inputs,
+                model.test_lenth: piece_lenth,
+                model.test_labels: piece_labels
+            }
+            test_loss, accuracy, expection, w2v = sess.run(
+                [model.test_loss, model.test_accuracy, model.expection, model.embeddings],
+                feed_dict=test_feed_dict)
+            total_test_loss += test_loss * piece_num
+            total_accuracy += accuracy * piece_num
+            total_expection.extend(expection)
+            # for i in range(len(expection)):
+            #     if expection[i] < threshold:
+            #         logit = 0
+            #     else:
+            #         logit = 1
+            #     total_expection.append(logit)
+            #     if logit == piece_labels[i]:
+            #         total_accuracy += 1
+
+        total_test_loss /= test_num
+        total_accuracy /= test_num
+        for i in range(test_num):
+            print(i, [glossary[word] for word in test_inputs[i]])
+            print(test_inputs[i])
+            # print(alpha[i])
+            print(test_labels[i], total_expection[i])
+
+        def f_value():
+            # 真正例
+            TP = 0
+            # 假正例
+            FP = 0
+            # 假反例
+            FN = 0
+            # 真反例
+            TN = 0
+
+            # We pay more attention on negative samples.
+            for i in range(test_num):
+                if test_labels[i] == 0 and total_expection[i] == 0:
+                    TP += 1
+                elif test_labels[i] == 0 and total_expection[i] == 1:
+                    FN += 1
+                elif test_labels[i] == 1 and total_expection[i] == 0:
+                    FP += 1
+                elif test_labels[i] == 1 and total_expection[i] == 1:
+                    TN += 1
+
+            P = TP / (TP + FP + 0.0001)
+            R = TP / (TP + FN + 0.0001)
+            F = 2 * P * R / (P + R + 0.0001)
+            P_ = TN / (TN + FN + 0.0001)
+            R_ = TN / (TN + FP + 0.0001)
+            F_ = 2 * P_ * R_ / (P_ + R_ + 0.0001)
+            ACC = (TP + TN) / (TP + FP + TN + FN + 0.0001)
+            print("Validation: Average loss: {};".format(total_test_loss))
+            print("     accuracy rate: {:.4f}".format(total_accuracy))
+            print("About negative samples:")
+            print("     precision rate: {:.4f}".format(P))
+            print("     recall rate: {:.4f}".format(R))
+            print("     f-value: {:.4f}".format(F))
+
+            print("About positive samples:")
+            print("     precision rate: {:.4f}".format(P_))
+            print("     recall rate: {:.4f}".format(R_))
+            print("     f-value: {:.4f}".format(F_))
+
+        f_value()
+        return total_expection
+    else:
+        print("error!")
 
 def main(_):
     with tf.Graph().as_default(), tf.Session() as sess:
         # train(sess)
-        test(sess)
+        # test_doc(sess)
+        test_sent(sess)
         # reload_model(sess)
         # compile(sess, 'train')
 
