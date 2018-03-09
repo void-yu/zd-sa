@@ -256,7 +256,7 @@ if __name__ == '__main__':
     FLAGS = flags.FLAGS
 
     # test('../data/corpus/check/yxcd.xlsx')
-    # predict(input_path='../data/corpus/check/klb.xlsx', output_path='out/x.xlsx')
-    test_onesent('发表了博文《康宝莱是传销》自己家人有做的，可我不愿意违背自己良心去宣传。确实很坑人~以下为好多被坑的人们的心声~希望大家不要为了急于追求苗条的身材去花冤枉钱了~实话告诉你都是骗人的，因为他们是金字塔模http://t.cn/RK2YJ8t')
+    predict(input_path='../data/corpus/check/klb.xlsx', output_path='out/x.xlsx')
+    # test_onesent('发表了博文《康宝莱是传销》自己家人有做的，可我不愿意违背自己良心去宣传。确实很坑人~以下为好多被坑的人们的心声~希望大家不要为了急于追求苗条的身材去花冤枉钱了~实话告诉你都是骗人的，因为他们是金字塔模http://t.cn/RK2YJ8t')
 
 
