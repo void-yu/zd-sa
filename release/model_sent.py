@@ -35,6 +35,7 @@ class EncoderModel(object):
         self.inputs = tf.placeholder(tf.int32, shape=[None, self.seq_size], name='inputs')
         self.labels = tf.placeholder(tf.float32, shape=[None], name='labels')
         self.lenths = tf.placeholder(tf.int32, shape=[None], name='lenths')
+        self.lenths_weight = tf.placeholder(tf.float32, shape=[None, self.seq_size])
         self.pretrained_wv = tf.placeholder(tf.float32, shape=[self.glossary_size, self.embedding_size])
         return self.inputs, self.lenths, self.labels
 
@@ -93,11 +94,13 @@ class EncoderModel(object):
             alpha = tf.reshape(rnn_outputs, [-1, self.hidden_size*2])
             alpha = tf.matmul(tf.nn.tanh(tf.matmul(alpha, self.u1_w) + self.u1_b), self.u2_w)
             alpha = tf.reshape(alpha, [-1, self.seq_size])
-            alpha = tf.nn.softmax(alpha)
+            exp_alpha = tf.exp(alpha) * self.lenths_weight
+            sumed_exp_alpha = tf.reduce_sum(exp_alpha, axis=-1, keepdims=True)
+            alpha = exp_alpha / sumed_exp_alpha
             self.alpha = alpha
             alpha = tf.reshape(alpha, [-1, self.seq_size, 1])
-            attn_outputs = tf.reduce_mean(rnn_outputs * alpha, axis=1)
-        return attn_outputs
+            rnn_outputs = rnn_outputs * alpha
+        return rnn_outputs
 
 
     """
@@ -107,8 +110,16 @@ class EncoderModel(object):
             outputs - shape=[batch_size, relu]
     """
     def bi_sigmoid_layer(self, inputs):
+
+        inputs = tf.reshape(inputs, shape=[-1, self.hidden_size*2])
         logits = tf.matmul(inputs, self.sigmoid_weights) + self.sigmoid_biases
-        return logits
+        logits = tf.reshape(logits, shape=[-1, self.seq_size, 1])
+        logits = tf.sigmoid(logits)
+        self.logits = logits
+        inputs = tf.reshape(inputs, shape=[-1, self.seq_size, self.hidden_size*2])
+        meaned_inputs = tf.reduce_mean(inputs, axis=1)
+        meaned_logits = tf.matmul(meaned_inputs, self.sigmoid_weights) + self.sigmoid_biases
+        return meaned_logits
 
 
     """
@@ -136,5 +147,79 @@ class EncoderModel(object):
         self.accuracy = tf.reduce_mean(tf.cast(tf.equal(tf.round(tf.sigmoid(inputs)), labels), tf.float32))
 
 
-        self.expection = tf.round(tf.sigmoid(inputs))
+        self.raw_expection = tf.sigmoid(inputs)
+        self.expection = tf.round(self.raw_expection)
+
+
+    # def optimize(self,
+    #              loss,
+    #              global_step,
+    #              max_grad_norm,
+    #              lr,
+    #              lr_decay,
+    #              sync_replicas=False,
+    #              replicas_to_aggregate=relu,
+    #              task_id=0):
+    #     """Builds optimization graph.
+    #
+    #     * Creates an optimizer, and optionally wraps with SyncReplicasOptimizer
+    #     * Computes, clips, and applies gradients
+    #     * Maintains moving averages for all trainable variables
+    #     * Summarizes variables and gradients
+    #
+    #     Args:
+    #       loss: scalar loss to minimize.
+    #       global_step: integer scalar Variable.
+    #       max_grad_norm: float scalar. Grads will be clipped to this value.
+    #       lr: float scalar, learning rate.
+    #       lr_decay: float scalar, learning rate decay rate.
+    #       sync_replicas: bool, whether to use SyncReplicasOptimizer.
+    #       replicas_to_aggregate: int, number of replicas to aggregate when using
+    #         SyncReplicasOptimizer.
+    #       task_id: int, id of the current task; used to ensure proper initialization
+    #         of SyncReplicasOptimizer.
+    #
+    #     Returns:
+    #       train_op
+    #     """
+    #     with tf.name_scope('optimization'):
+    #         # Compute gradients.
+    #         tvars = tf.trainable_variables()
+    #         grads = tf.gradients(
+    #             loss,
+    #             tvars,
+    #             aggregation_method=tf.AggregationMethod.EXPERIMENTAL_ACCUMULATE_N)
+    #
+    #         # Clip non-embedding grads
+    #         non_embedding_grads_and_vars = [(g, v) for (g, v) in zip(grads, tvars)
+    #                                         if 'embedding' not in v.op.name]
+    #         embedding_grads_and_vars = [(g, v) for (g, v) in zip(grads, tvars)
+    #                                     if 'embedding' in v.op.name]
+    #
+    #         ne_grads, ne_vars = zip(*non_embedding_grads_and_vars)
+    #         ne_grads, _ = tf.clip_by_global_norm(ne_grads, max_grad_norm)
+    #         non_embedding_grads_and_vars = zip(ne_grads, ne_vars)
+    #
+    #         grads_and_vars = embedding_grads_and_vars + non_embedding_grads_and_vars
+    #
+    #         # Summarize
+    #         # _summarize_vars_and_grads(grads_and_vars)
+    #
+    #         # Decaying learning rate
+    #         lr = tf.train.exponential_decay(
+    #             lr, global_step, relu, lr_decay, staircase=True)
+    #         tf.summary.scalar('learning_rate', lr)
+    #         opt = tf.train.AdamOptimizer(lr)
+    #
+    #         # Track the moving averages of all trainable variables.
+    #         variable_averages = tf.train.ExponentialMovingAverage(0.999, global_step)
+    #
+    #         # Apply gradients
+    #         # Non-sync optimizer
+    #         variables_averages_op = variable_averages.apply(tvars)
+    #         apply_gradient_op = opt.apply_gradients(grads_and_vars, global_step)
+    #         with tf.control_dependencies([apply_gradient_op, variables_averages_op]):
+    #             train_op = tf.no_op(name='train_op')
+    #
+    #         return train_op
 

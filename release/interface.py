@@ -7,9 +7,28 @@ import tensorflow as tf
 
 import reader
 
+from model_sent import EncoderModel as em_sent
+
 import time
 
+flags = tf.app.flags
 
+flags.DEFINE_string("ckpt_dir", "model", "")
+flags.DEFINE_integer("save_every_n", 10, "")
+
+flags.DEFINE_integer("embedding_size", 400, "")
+flags.DEFINE_integer("hidden_size", 300, "")
+flags.DEFINE_integer("attn_lenth", 350, "")
+
+'''
+    33272(known)+(1876+8)(unknown)=35156
+'''
+flags.DEFINE_integer("glossary_size", 35156, "")
+flags.DEFINE_integer("batch_size", 128, "")
+flags.DEFINE_integer("seq_lenth", 150, "")
+flags.DEFINE_integer("epoches", 100, "")
+
+FLAGS = flags.FLAGS
 
 def get_test_batch(inputs, lenths, labels, num, input_label=True):
     batch_size = FLAGS.batch_size
@@ -36,12 +55,13 @@ def get_test_batch(inputs, lenths, labels, num, input_label=True):
                 count_num += 1
             yield batch_inputs, batch_lenths
 
+def padded_ones_list_like(lenths, max_lenth):
+    o = [[1.0] * i for i in lenths]
+    for i in o:
+        i.extend([0.0]*(max_lenth - len(i)))
+    return o
 
-def test(filepath):
-    corpus = reader.preprocess(reader.read_excel(filepath, text_column=1, label_column=0),
-                        seq_lenth=FLAGS.seq_lenth, seq_num=1, overlap_lenth=0, input_label=True, output_index=False)
-    # vocab, word2id = reader.read_glossary()
-
+def test(corpus):
     test_inputs = []
     test_lenths = []
     test_labels = []
@@ -80,6 +100,7 @@ def test(filepath):
                 test_feed_dict = {
                     model.inputs: piece_inputs,
                     model.lenths: piece_lenths,
+                    model.lenths_weight: padded_ones_list_like(piece_lenths, FLAGS.seq_lenth),
                     model.labels: piece_labels
                 }
                 test_loss, accuracy, expection, w2v = sess.run(
@@ -177,7 +198,8 @@ def predict(input_path, output_path):
             for piece_inputs, piece_lenths in get_test_batch(test_inputs, test_lenths, None, test_num, input_label=False):
                 test_feed_dict = {
                     model.inputs: piece_inputs,
-                    model.lenths: piece_lenths
+                    model.lenths: piece_lenths,
+                    model.lenths_weight: padded_ones_list_like(piece_lenths, FLAGS.seq_lenth),
                 }
                 expection = sess.run(model.expection, feed_dict=test_feed_dict)
                 total_expection.extend(expection)
@@ -221,42 +243,32 @@ def test_onesent(text):
         if reader.restore_from_checkpoint(sess, saver, FLAGS.ckpt_dir):
             test_feed_dict = {
                 model.inputs: test_inputs,
-                model.lenths: test_lenths
+                model.lenths: test_lenths,
+                model.lenths_weight: padded_ones_list_like(test_lenths, FLAGS.seq_lenth),
             }
-            expection, alpha = sess.run([model.expection, model.alpha], feed_dict=test_feed_dict)
+            expection, alpha, logits = sess.run([model.expection, model.alpha, model.logits], feed_dict=test_feed_dict)
+
+            print([vocab[i] for i in test_inputs[0]])
             print([vocab[word] for word in test_inputs])
-            print(alpha)
+
+            for i in range(len(test_inputs[0])):
+                print(vocab[test_inputs[0][i]], alpha[0][i], logits[0][i])
+
             if (expection[0][0] == 1):
                 print('负面')
             else:
                 print('正面')
 
+            return expection[0]
 
 
 if __name__ == '__main__':
-    from model_sent import EncoderModel as em_sent
+    # corpus = reader.preprocess(
+    #     reader.read_excel('data/klb.xlsx', text_column=1, label_column=0),
+    #     seq_lenth=FLAGS.seq_lenth, seq_num=1, overlap_lenth=0, input_label=True,
+    #     output_index=False, de_duplicated=True)
+    # test(corpus)
 
-    flags = tf.app.flags
-
-    flags.DEFINE_string("ckpt_dir", "model", "")
-    flags.DEFINE_integer("save_every_n", 10, "")
-
-    flags.DEFINE_integer("embedding_size", 400, "")
-    flags.DEFINE_integer("hidden_size", 300, "")
-    flags.DEFINE_integer("attn_lenth", 350, "")
-
-    '''
-        33272(known)+(1876+8)(unknown)=35156
-    '''
-    flags.DEFINE_integer("glossary_size", 35156, "")
-    flags.DEFINE_integer("batch_size", 128, "")
-    flags.DEFINE_integer("seq_lenth", 150, "")
-    flags.DEFINE_integer("epoches", 100, "")
-
-    FLAGS = flags.FLAGS
-
-    # test('data/yxcd.xlsx')
     # predict(input_path='data/klb.xlsx', output_path='out/x.xlsx')
-    test_onesent('发表了博文《康宝莱是传销》自己家人有做的，可我不愿意违背自己良心去宣传。确实很坑人~以下为好多被坑的人们的心声~希望大家不要为了急于追求苗条的身材去花冤枉钱了~实话告诉你都是骗人的，因为他们是金字塔模http://t.cn/RK2YJ8t')
 
-
+    test_onesent('走进康宝莱之前，我听到了台上的分享嘉宾说了这句话：“也许做康宝莱这件事不是你的梦想，但做好康宝莱能实现你所有的梦想！” 我信了。 果然这是真的。 同时，在这个过程中，帮助更多人获得好身材、健康、财富、和精彩人生，也一并成为了我的梦想！和我其他的梦想一起实现了！——肖珂宇 网页链接')

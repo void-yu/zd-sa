@@ -65,15 +65,26 @@ def read_excel(file_path, text_column, label_column=None):
     corpus = filter(lambda x: pd.isnull(x[0]) is False, corpus)
     return corpus
 
-def preprocess(corpus, seq_lenth, seq_num, overlap_lenth, input_label=True, output_index=True):
+def preprocess(corpus, seq_lenth, seq_num, overlap_lenth, input_label=True, output_index=True, de_duplicated=True, split_func=lambda x:list(jieba.cut(x))):
     # Read Vocabulary
     vocab, word2id = read_glossary()
+    if de_duplicated is True:
+        corpus_t = []
+        set_dd = set()
+        for i in corpus:
+            if i[0] not in set_dd:
+                set_dd.add(i[0])
+                corpus_t.append(i)
+            else:
+                continue
+        corpus = corpus_t
+        del corpus_t
 
     # Process corpus
     corpus_t = []
     total_lenth = seq_lenth*seq_num - overlap_lenth*(seq_num - 1)
     for index, item in enumerate(corpus):
-        text_t = list(jieba.cut(str(item[0])))
+        text_t = split_func(str(item[0]))
         if len(text_t) > total_lenth:
             print(len(text_t), '>', total_lenth, 'Sequence lenth is not enough~')
             continue
@@ -95,7 +106,6 @@ def preprocess(corpus, seq_lenth, seq_num, overlap_lenth, input_label=True, outp
         if output_index is True:
             item_t.append(index)
         corpus_t.append(item_t)
-
     corpus = corpus_t
     del corpus_t
 

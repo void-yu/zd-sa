@@ -4,7 +4,7 @@ import numpy as np
 import pickle
 
 import reader
-from model_sent import EncoderModel as em_sent
+from test.model_sent import EncoderModel as em_sent
 
 flags = tf.app.flags
 
@@ -21,7 +21,7 @@ flags.DEFINE_integer("attn_lenth", 350, "")
 flags.DEFINE_integer("glossary_size", 35156, "")
 flags.DEFINE_integer("batch_size", 128, "")
 flags.DEFINE_integer("seq_lenth", 150, "")
-flags.DEFINE_integer("epoches", 100, "")
+flags.DEFINE_integer("epoches", 25, "")
 
 FLAGS = flags.FLAGS
 
@@ -63,6 +63,13 @@ def get_test_batch(inputs, lenth, labels, num):
             batch_labels.append(labels[count_num])
             count_num += 1
         yield batch_inputs, batch_lenth, batch_labels
+
+def padded_ones_list_like(lenths, max_lenth):
+    o = [[1.0] * i for i in lenths]
+    for i in o:
+        i.extend([0.0]*(max_lenth - len(i)))
+    return o
+
 
 def train_sent(sess, corpus, test_corpus):
     print("Read file --")
@@ -131,6 +138,7 @@ def train_sent(sess, corpus, test_corpus):
             feed_dict = {
                 model.inputs: inputs,
                 model.lenths: lenths,
+                model.lenths_weight: padded_ones_list_like(lenths, FLAGS.seq_lenth),
                 model.labels: labels,
                 model.learning_rate: 0.001
             }
@@ -158,12 +166,12 @@ def train_sent(sess, corpus, test_corpus):
                 total_test_loss = 0
                 total_accuracy = 0
                 total_expection = []
-                for piece_inputs, piece_lenths, piece_labels in get_test_batch(test_inputs, test_lenth, test_labels,
-                                                                               test_num):
+                for piece_inputs, piece_lenths, piece_labels in get_test_batch(test_inputs, test_lenth, test_labels, test_num):
                     piece_num = len(piece_inputs)
                     test_feed_dict = {
                         model.inputs: piece_inputs,
                         model.lenths: piece_lenths,
+                        model.lenths_weight: padded_ones_list_like(piece_lenths, FLAGS.seq_lenth),
                         model.labels: piece_labels
                     }
                     test_loss, accuracy, expection, w2v = sess.run(
@@ -241,20 +249,63 @@ def train_sent(sess, corpus, test_corpus):
 
 def main(_):
     with tf.Graph().as_default(), tf.Session() as sess:
-        flags.DEFINE_string("ckpt_dir", "model", "")
+        flags.DEFINE_string("tensorb_dir", "../tensorb/bd_ce_w=1_tanh_init_mean_fixed", "")
+        flags.DEFINE_string("ckpt_dir", "../save/bd_ce_w=1_tanh_init_mean_fixed", "")
 
         # train_data = '../data/corpus/excel/multi-labeled.xlsx'
-        test_data = 'data/klb.xlsx'
+        # test_data = '../data/corpus/check/klb.xlsx'
         # corpus = reader.preprocess(reader.read_excel(train_data, text_column=1, label_column=0),
         #                            seq_lenth=FLAGS.seq_lenth, seq_num=1, overlap_lenth=0, input_label=True, output_index=False)
-        with open('data/train', 'rb') as fp:
-            corpus = pickle.load(fp)
+        # with open('../data/multi-labeled', 'rb') as fp:
+        #     corpus = pickle.load(fp)
 
-        test_corpus = reader.preprocess(reader.read_excel(test_data, text_column=1, label_column=0),
-                                   seq_lenth=FLAGS.seq_lenth, seq_num=1, overlap_lenth=0, input_label=True, output_index=False)
-        train_sent(sess, corpus, test_corpus)
+        # test_corpus = reader.preprocess(reader.read_excel(test_data, text_column=1, label_column=0),
+        #                            seq_lenth=FLAGS.seq_lenth, seq_num=1, overlap_lenth=0, input_label=True, output_index=False)
 
+        # train_sent(sess, corpus, test_corpus)
 
+        # corpus_1 = reader.preprocess(
+        #     reader.read_excel('../data/corpus/latest/1_full.xlsx', text_column=1, label_column=0),
+        #     seq_lenth=FLAGS.seq_lenth, seq_num=1, overlap_lenth=0,
+        #     input_label=True, output_index=False, de_duplicated=True)
+        # corpus_2 = reader.preprocess(
+        #     reader.read_excel('../data/corpus/latest/multi-labeled.xlsx', text_column=1, label_column=0),
+        #     seq_lenth=FLAGS.seq_lenth, seq_num=1, overlap_lenth=0,
+        #     input_label=True, output_index=False, de_duplicated=True)
+        # corpus_3 = reader.preprocess(
+        #     reader.read_excel('../data/corpus/latest/klb.xlsx', text_column=1, label_column=0),
+        #     seq_lenth=FLAGS.seq_lenth, seq_num=1, overlap_lenth=0,
+        #     input_label=True, output_index=False, de_duplicated=True)
+        # corpus_4 = reader.preprocess(
+        #     reader.read_excel('../data/corpus/latest/yhwc.xlsx', text_column=1, label_column=0),
+        #     seq_lenth=FLAGS.seq_lenth, seq_num=1, overlap_lenth=0,
+        #     input_label=True, output_index=False, de_duplicated=True)
+        # corpus_5 = reader.preprocess(
+        #     reader.read_excel('../data/corpus/latest/yxcd.xlsx', text_column=1, label_column=0),
+        #     seq_lenth=FLAGS.seq_lenth, seq_num=1, overlap_lenth=0,
+        #     input_label=True, output_index=False, de_duplicated=True)
+        #
+        # fixed = corpus_1 + corpus_2 + corpus_3 + corpus_4 + corpus_5
+        #
+        # print(len(fixed))
+
+        # with open('../data/corpus/latest/fixed.pickle', 'rb') as fp:
+        #     fixed = pickle.load(fp)
+        #
+        # np.random.shuffle(fixed)
+        #
+        # num = len(fixed)
+        # train = fixed[:num//11*9]
+        # valid = fixed[num//11*9:num//11*10]
+        # test = fixed[num//11*10:]
+
+        with open('../data/corpus/latest/train.pickle', 'rb') as fp:
+            train = pickle.load(fp)
+        with open('../data/corpus/latest/valid.pickle', 'rb') as fp:
+            valid = pickle.load(fp)
+
+        # print(len(train))
+        train_sent(sess, train, valid)
 
 if __name__ == '__main__':
     tf.app.run()
